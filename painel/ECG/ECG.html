@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Monitor de ECG</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="preload.js"></script>
+</head>
+
+<body>
+    <div id="ecgChart" style="height: 400px;"></div>
+    <div id="ecgChartInfinite" style="height: 400px;"></div>
+    <div id="capturesContainer"></div> <!-- Container para as capturas -->
+    <button id="saveButton">Salvar Capturas</button>
+    <div id="textOutput"></div> <!-- Exibe os dados recebidos -->
+
+    <!-- Dropdown para escolher a porta serial -->
+    <select id="serialPortSelect">
+        <option value="">Selecione a porta serial...</option>
+    </select>
+
+    <script>
+        // Função para atualizar portas no seletor
+        function updateSerialPorts(ports) {
+            const selectElement = document.getElementById('serialPortSelect');
+            if (!selectElement) {
+                console.error("Elemento 'serialPortSelect' não encontrado no DOM!");
+                return;
+            }
+
+            selectElement.innerHTML = ''; // Limpa o seletor
+
+            ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port.path;
+                option.textContent = `${port.friendlyName || port.path} - ${port.manufacturer || 'Desconhecido'}`;
+                selectElement.appendChild(option);
+            });
+
+            console.log("Portas adicionadas ao seletor:", ports);
+        }
+
+        // Adiciona pontos ao gráfico
+        function addDataPoint(ecgValue, timestamp) {
+            if (typeof ecgValue !== 'number' || typeof timestamp !== 'number') {
+                console.error("Dados inválidos recebidos para o gráfico:", { ecgValue, timestamp });
+                return;
+            }
+
+            ecgData.x.push(timestamp);
+            ecgData.y.push(ecgValue);
+
+            infiniteEcgData.x.push(timestamp);
+            infiniteEcgData.y.push(ecgValue);
+
+            // Remove os pontos mais antigos para o gráfico contínuo
+            if (infiniteEcgData.x.length > 300) {
+                infiniteEcgData.x.shift();
+                infiniteEcgData.y.shift();
+            }
+
+            // Atualiza os gráficos
+            Plotly.update('ecgChart', { x: [ecgData.x], y: [ecgData.y] });
+            Plotly.update('ecgChartInfinite', { x: [infiniteEcgData.x], y: [infiniteEcgData.y] });
+
+            // Atualiza o texto na interface
+            const textOutput = document.getElementById('textOutput');
+            if (textOutput) {
+                textOutput.innerText = `Últimos dados: ECG = ${ecgValue}, Tempo = ${timestamp}`;
+            }
+        }
+
+        // Configuração inicial
+        window.addEventListener('DOMContentLoaded', () => {
+            // Configuração de portas seriais
+            window.electronAPI.onSerialPorts((ports) => {
+                console.log('Portas recebidas no renderer:', ports);  // Agora o log é feito aqui
+                updateSerialPorts(ports);
+            });
+
+            // Configuração do gráfico ECG
+            const ecgData = { x: [], y: [] };
+            const infiniteEcgData = { x: [], y: [] };
+            let lastTimestamp = 0;
+
+            // Configurações dos gráficos
+            Plotly.newPlot('ecgChart', [{ x: ecgData.x, y: ecgData.y, mode: 'lines' }], {
+                title: 'Gráfico Reiniciável com Capturas',
+                xaxis: { title: 'Tempo' },
+                yaxis: { title: 'ECG', rangemode: 'tozero' }
+            });
+
+            Plotly.newPlot('ecgChartInfinite', [{ x: infiniteEcgData.x, y: infiniteEcgData.y, mode: 'lines' }], {
+                title: 'Gráfico Contínuo',
+                xaxis: { title: 'Tempo' },
+                yaxis: { title: 'ECG', rangemode: 'tozero' }
+            });
+
+            // Configuração de eventos do ECG
+            window.electronAPI.onEcgData((data) => {
+                const { ecgValue, timestamp } = data;
+                if (timestamp < lastTimestamp) {
+                    console.log("Timestamp menor que o anterior, resetando o gráfico.");
+                    ecgData.x = [];
+                    ecgData.y = [];
+                    infiniteEcgData.x = [];
+                    infiniteEcgData.y = [];
+                    Plotly.update('ecgChart', { x: [ecgData.x], y: [ecgData.y] });
+                    Plotly.update('ecgChartInfinite', { x: [infiniteEcgData.x], y: [infiniteEcgData.y] });
+                }
+
+                lastTimestamp = timestamp;
+                addDataPoint(ecgValue, timestamp);
+
+                if (ecgData.x.length >= 400) {
+                    ecgData.x = [];
+                    ecgData.y = [];
+                }
+            });
+
+            // Evento de mudança no seletor de portas
+            const portSelectElement = document.getElementById('serialPortSelect');
+            if (portSelectElement) {
+                portSelectElement.addEventListener('change', (event) => {
+                    const selectedPortPath = event.target.value;
+                    if (selectedPortPath) {
+                        window.electronAPI.sendSelectPort({ path: selectedPortPath });
+                        console.log(`Porta selecionada: ${selectedPortPath}`);
+                    }
+                });
+            }
+        });
+
+    </script>
+
+
+</body>
+
+</html>

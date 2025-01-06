@@ -1,197 +1,251 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitoramento de ECG com Plotly</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        .container {
-            display: flex;
-            margin-top: 50px;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        #ecgChart, #ecgChartInfinite {
-            width: 100%;
-            height: 500px;
-            margin-bottom: 30px;
-        }
-
-        .captures-container {
-            display: flex;
-            margin-top: 20px;
-        }
-
-        .capture {
-            width: 100px;
-            height: 100px;
-            margin: 5px;
-            border: 1px solid #ddd;
-        }
-
-        #textOutput {
-            margin-top: 20px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            background-color: #f4f4f4;
-            max-width: 500px;
-            word-wrap: break-word;
-        }
-
-        #saveButton {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-
-        #saveButton:hover {
-            background-color: #45a049;
-        }
-    </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login e Cadastro com Firebase</title>
+    <link rel="stylesheet" href="node_modules/bootstrap/dist/css/bootstrap.min.css" />
+    <script src="node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Firebase SDK compatível com scripts sem "type=module" -->
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-auth-compat.js"></script>
 </head>
-<body>
-    <div class="container">
-        <h2>Monitoramento de ECG</h2>
-        <div id="ecgChart"></div>
-        <div id="ecgChartInfinite"></div>
-        <h4>Texto de Dados Recebidos</h4>
-        <div id="textOutput" class="alert alert-secondary">Aguardando dados...</div>
-        <div class="captures-container" id="capturesContainer"></div>
-        <button id="saveButton">Salvar Capturas</button>
+
+<body class="bg-light">
+    <div class="container d-flex justify-content-center align-items-center min-vh-100">
+        <div class="card shadow-lg p-4" style="width: 100%; max-width: 400px">
+            <!-- Abas para alternar entre login, cadastro e recuperação de senha -->
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="login-tab" data-bs-toggle="tab" data-bs-target="#login"
+                        type="button" role="tab" aria-controls="login" aria-selected="true">
+                        Login
+                    </button>
+                </li>
+
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="forgotPassword-tab" data-bs-toggle="tab"
+                        data-bs-target="#forgotPassword" type="button" role="tab" aria-controls="forgotPassword"
+                        aria-selected="false">
+                        Esqueci minha senha
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Conteúdo das abas -->
+            <div class="tab-content" id="myTabContent">
+                <!-- Formulário de Login -->
+                <div class="tab-pane fade show active" id="login" role="tabpanel" aria-labelledby="login-tab">
+                    <form id="loginForm" class="mt-4">
+                        <div class="mb-3">
+                            <label for="loginEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="loginEmail" placeholder="Digite seu email"
+                                required />
+                        </div>
+                        <div class="mb-3">
+                            <label for="loginPassword" class="form-label">Senha</label>
+                            <input type="password" class="form-control" id="loginPassword"
+                                placeholder="Digite sua senha" required />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            Entrar
+                        </button>
+                        <p class="mt-2 text-danger" id="loginError"></p>
+                    </form>
+                </div>
+
+                <!-- Formulário de Esqueci Minha Senha -->
+                <div class="tab-pane fade" id="forgotPassword" role="tabpanel" aria-labelledby="forgotPassword-tab">
+                    <form id="forgotPasswordForm" class="mt-4">
+                        <div class="mb-3">
+                            <label for="forgotEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="forgotEmail" placeholder="Digite seu email"
+                                required />
+                        </div>
+                        <button type="submit" class="btn btn-warning w-100">
+                            Enviar Link para Redefinir Senha
+                        </button>
+                        <p class="mt-2 text-danger" id="forgotError"></p>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <button id="adminButton" style="
+          position: absolute;
+          bottom: 5px;
+          right: 5px;
+          opacity: 0;
+          width: 20px;
+          height: 20px;
+          background-color: transparent;
+          border: none;
+        " onclick="showAdminModal()"></button>
+
+        <!-- Modal para autenticação de Admin -->
+        <div class="modal fade" id="adminModal" tabindex="-1" aria-labelledby="adminModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="adminModalLabel">
+                            Autenticação de Admin
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="adminAuthForm">
+                            <div class="mb-3">
+                                <label for="adminEmail" class="form-label">Email de Admin</label>
+                                <input type="email" class="form-control" id="adminEmail"
+                                    placeholder="Digite o email de admin" required />
+                            </div>
+                            <div class="mb-3">
+                                <label for="adminPassword" class="form-label">Senha de Admin</label>
+                                <input type="password" class="form-control" id="adminPassword"
+                                    placeholder="Digite a senha de admin" required />
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                Entrar como Admin
+                            </button>
+                            <p class="mt-2 text-danger" id="adminError"></p>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de feedback -->
+        <div class="modal fade" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="feedbackModalLabel">Feedback</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="feedbackMessage">
+                        <!-- A mensagem será inserida dinamicamente aqui -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
+
     <script>
-        // Dados do gráfico reiniciável
-        const ecgData = { x: [], y: [] };
+        function showFeedbackMessage(message, type = "success") {
+            const feedbackMessage = document.getElementById("feedbackMessage");
+            feedbackMessage.textContent = message;
 
-        // Dados do gráfico contínuo
-        const infiniteEcgData = { x: [], y: [] };
-
-        let xPosition = 0;
-        let restingTime = 0;
-        let heartRate = 1;
-        let abnormalRate = false;
-        let biphasicMode = false;
-        let nextAbnormal = Math.random() * 10;
-        let captureIndex = 0;
-
-        const layout = {
-            title: 'Gráfico Reiniciável com Capturas',
-            xaxis: { title: 'Tempo' },
-            yaxis: { title: 'ECG', rangemode: 'tozero' }
-        };
-
-        const infiniteLayout = {
-            title: 'Gráfico Contínuo',
-            xaxis: { title: 'Tempo' },
-            yaxis: { title: 'ECG', rangemode: 'tozero' }
-        };
-
-        Plotly.newPlot('ecgChart', [{
-            x: ecgData.x,
-            y: ecgData.y,
-            mode: 'lines',
-            line: { color: 'rgba(75, 192, 192, 1)', width: 2 }
-        }], layout);
-
-        Plotly.newPlot('ecgChartInfinite', [{
-            x: infiniteEcgData.x,
-            y: infiniteEcgData.y,
-            mode: 'lines',
-            line: { color: 'rgba(192, 75, 75, 1)', width: 2 }
-        }], infiniteLayout);
-
-        function simulateECG(t) {
-            const restingAmplitude = 0;
-            const qrsAmplitude = biphasicMode ? 2 : 1;
-
-            if (restingTime > 0) {
-                restingTime--;
-                return restingAmplitude;
-            } else if (t % heartRate < 0.1) {
-                return qrsAmplitude * (abnormalRate ? 1.5 : 1);
-            } else if (t % heartRate < 0.2) {
-                return -qrsAmplitude * 0.5;
+            // Muda a classe do modal com base no tipo
+            if (type === "error") {
+                feedbackMessage.style.color = "red";
             } else {
-                restingTime = 50;
-                return restingAmplitude;
-            }
-        }
-
-        function addDataPoint(ecgValue) {
-            ecgData.x.push(xPosition);
-            ecgData.y.push(ecgValue);
-
-            infiniteEcgData.x.push(xPosition);
-            infiniteEcgData.y.push(ecgValue);
-
-            // Limitar a quantidade de pontos no gráfico contínuo
-            if (infiniteEcgData.x.length > 300) {
-                infiniteEcgData.x.shift();
-                infiniteEcgData.y.shift();
+                feedbackMessage.style.color = "green";
             }
 
-            // Atualiza os gráficos
-            Plotly.update('ecgChart', { x: [ecgData.x], y: [ecgData.y] });
-            Plotly.update('ecgChartInfinite', { x: [infiniteEcgData.x], y: [infiniteEcgData.y] });
-
-            document.getElementById('textOutput').innerText = `Últimos dados: ECG = ${ecgValue}`;
+            // Exibir o modal
+            const feedbackModal = new bootstrap.Modal(document.getElementById("feedbackModal"));
+            feedbackModal.show();
         }
 
-        function triggerAbnormality() {
-            abnormalRate = Math.random() > 0.7;
-            biphasicMode = Math.random() > 0.85;
-            nextAbnormal = Math.random() * 10;
+        // Configurações do Firebase
+        // Essa são minhas credenciais (Neto) Troque pelas suas
+        // O link https://server-api-petcardio-production.up.railway.app / https://amusing-rejoicing-production-0fd8.up.railway.app é onde minha API esta Hospedada, troque para o seu Link
+        // Certifique de ter colocado as Variaveis de Ambiente corretamente no seu VPS ou Docker online
+        const firebaseConfig = {
+            apiKey: "AIzaSyD-1Jy98ZHXn6NWy8X3OPYlEg6f9NAIqEE",
+            authDomain: "petcardio-9cabf.firebaseapp.com",
+            databaseURL: "https://petcardio-9cabf-default-rtdb.firebaseio.com",
+            projectId: "petcardio-9cabf",
+            storageBucket: "petcardio-9cabf.appspot.com",
+            messagingSenderId: "409087895827",
+            appId: "1:409087895827:web:aba715782324516f8e52e6",
+            measurementId: "G-P0ZM04MDS5",
+        };
+
+        // Inicializa o Firebase ANTES de usar qualquer outro serviço
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        } else {
+            firebase.app(); // Usa a instância já existente
         }
 
-        function captureECG() {
-            Plotly.toImage(document.getElementById('ecgChart'), { format: 'png', width: 400, height: 400 })
-                .then(function (imageUrl) {
-                    const imgElement = document.createElement('img');
-                    imgElement.src = imageUrl;
-                    imgElement.classList.add('capture');
-                    document.getElementById('capturesContainer').appendChild(imgElement);
+        // Agora usa a API segura do preload
+        document.getElementById("loginForm").addEventListener("submit", (e) => {
+            e.preventDefault();
+            const email = document.getElementById("loginEmail").value;
+            const password = document.getElementById("loginPassword").value;
 
-                    captureIndex++;
-                    if (captureIndex > 5) {
-                        const firstCapture = document.getElementById('capturesContainer').firstChild;
-                        document.getElementById('capturesContainer').removeChild(firstCapture);
+            firebase
+                .auth()
+                .signInWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    const user = userCredential.user;
+
+                    if (!user.emailVerified) {
+                        return fetch(
+                            'https://amusing-rejoicing-production-0fd8.up.railway.app/verifyEmail',
+                            {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ email: email }),
+                            }
+                        )
+                            .then((response) => response.json())
+                            .then(() => {
+                                showFeedbackMessage("E-mail de verificação enviado! Por favor, verifique sua caixa de entrada.");
+                                throw new Error("Por favor, verifique seu e-mail antes de continuar.");
+                            })
+                            .catch((error) => {
+                                showFeedbackMessage("Erro ao tentar enviar o link de verificação: " + error.message, "error");
+                            });
                     }
+
+                    return user.getIdToken();
+                })
+                .then((token) => {
+                    return fetch("https://amusing-rejoicing-production-0fd8.up.railway.app/login", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ token }),
+                    });
+                })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error("Erro ao fazer login. Código de status: " + response.status);
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    showFeedbackMessage("Login realizado com sucesso!");
+                    if (data.userType === "veterinario") {
+                        window.electronAPI.navigateTo("painel/painel.html");
+                    } else if (data.userType === "petDono") {
+                        window.electronAPI.navigateTo("dono/tela_dono.html");
+                    } else {
+                        showFeedbackMessage("Tipo de usuário inválido!", "error");
+                    }
+                    document.getElementById("loginForm").reset();
+                })
+                .catch((error) => {
+                    showFeedbackMessage(error.message, "error");
                 });
-        }
 
-        document.getElementById('saveButton').addEventListener('click', function () {
-            const captures = document.getElementsByClassName('capture');
-            for (let i = 0; i < captures.length; i++) {
-                const imageUrl = captures[i].src;
-                const link = document.createElement('a');
-                link.href = imageUrl;
-                link.download = `ECG_capture_${i + 1}.png`;
-                link.click();
-            }
+            return false;
         });
-
-        setInterval(() => {
-            if (xPosition > nextAbnormal) {
-                triggerAbnormality();
-            }
-            const ecgValue = simulateECG(xPosition * 1.2);
-            addDataPoint(ecgValue);
-
-            // Captura e reinicia o gráfico ao atingir 400 pontos
-            if (ecgData.x.length >= 400) {
-                captureECG();
-                ecgData.x = [];
-                ecgData.y = [];
-            }
-
-            xPosition++;
-        }, 10); // 100 Hz
     </script>
+
 </body>
+
 </html>

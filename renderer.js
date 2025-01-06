@@ -25,7 +25,7 @@ const ecgChart = new Chart(ctx, {
   }
 });
 
-// Simulação de dados recebidos (substitua pela integração real do dispositivo)
+// Simulação de dados recebidos (Isso é uma simulação, substitua no codigo real o renderer.js pelas Portas USB)
 setInterval(() => {
   const timestamp = Date.now() % 10000; // Gera timestamps simulados
   const ecgValue = Math.floor(Math.random() * 1000); // Gera valores de ECG aleatórios
